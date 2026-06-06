@@ -1,0 +1,38 @@
+# =============================================================
+# Render Blueprint – Covenant Platform
+# =============================================================
+# This file tells Render how to deploy your application.
+# Docs: https://docs.render.com/blueprint-spec
+# =============================================================
+
+services:
+  - type: web
+    name: covenant-api
+    runtime: docker
+    plan: free
+    region: oregon
+    branch: main
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: MONGODB_URI
+        sync: false              # You will set this manually in the Render dashboard
+      - key: JWT_SECRET
+        generateValue: true      # Render auto-generates a random secret
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        value: ""                # Optional, can be set later
+      - key: EMAIL_HOST
+        value: smtp.gmail.com
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_USERNAME
+        sync: false
+      - key: EMAIL_PASSWORD
+        sync: false
+      - key: EMAIL_AUTH
+        value: "true"
+      - key: EMAIL_STARTTLS_ENABLE
+        value: "true"
