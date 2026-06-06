@@ -1,5 +1,6 @@
 package com.covenant.platform.config;
 
+import com.covenant.platform.security.RateLimitingFilter;
 import com.covenant.platform.service.CustomUserDetailsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -22,6 +23,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthFilter;
+    private final RateLimitingFilter rateLimitingFilter;
     private final CustomUserDetailsService userDetailsService;
     private final PasswordEncoder passwordEncoder;
 
@@ -37,13 +39,15 @@ public class SecurityConfig {
                     "/swagger-ui/**",
                     "/swagger-ui.html"
                 ).permitAll()
-                .anyRequest().authenticated()               // 3. Lock everything else
+                .requestMatchers("/actuator/**").permitAll() // 3. Allow Actuator health/info
+                .anyRequest().authenticated()               // 4. Lock everything else
             )
             .sessionManagement(session -> session
-                .sessionCreationPolicy(SessionCreationPolicy.STATELESS) // 3. No Cookies (JWT is Stateless)
+                .sessionCreationPolicy(SessionCreationPolicy.STATELESS) // No Cookies (JWT is Stateless)
             )
-            .authenticationProvider(authenticationProvider()) // 4. Set our custom Auth Provider
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class); // 5. Add our JWT Guard
+            .authenticationProvider(authenticationProvider()) // Set our custom Auth Provider
+            .addFilterBefore(rateLimitingFilter, UsernamePasswordAuthenticationFilter.class) // Rate limiting first
+            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class); // Then JWT Guard
 
         return http.build();
     }

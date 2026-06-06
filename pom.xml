@@ -12,7 +12,7 @@
 	<artifactId>platform</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>platform</name>
-	<description>Demo project for Spring Boot</description>
+	<description>Covenant - Secure Escrow Platform API built with Spring Boot 3, Stripe, and JWT</description>
 	<url/>
 	<licenses>
 		<license/>
@@ -74,7 +74,7 @@
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
 			<artifactId>jjwt-api</artifactId>
-			<version>0.11.5</version>
+			<version>0.12.6</version>
 		</dependency>
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
@@ -92,6 +92,11 @@
 			<groupId>com.stripe</groupId>
 			<artifactId>stripe-java</artifactId>
 			<version>24.1.0</version>
+		</dependency>
+		<dependency>
+			<groupId>com.bucket4j</groupId>
+			<artifactId>bucket4j-core</artifactId>
+			<version>8.10.1</version>
 		</dependency>
 		<dependency>
 			<groupId>org.springdoc</groupId>

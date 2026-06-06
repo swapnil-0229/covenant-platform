@@ -1,0 +1,50 @@
+# =============================================================
+# Covenant Platform - Application Configuration Template
+# =============================================================
+# Copy this file to src/main/resources/application.yaml
+# and replace all placeholder values with your real credentials.
+# NEVER commit the real application.yaml to version control.
+# =============================================================
+
+spring:
+  data:
+    mongodb:
+      uri: YOUR_DB_URI                    # e.g., mongodb://localhost:27017 or mongodb+srv://...
+      database: covenant
+  mail:
+    host: YOUR_EMAIL_HOST                 # e.g., smtp.gmail.com
+    port: 587
+    username: YOUR_EMAIL                  # e.g., your_email@gmail.com
+    password: YOUR_APP_PASSWORD           # Gmail App Password (not your regular password)
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+jwt:
+  secret: YOUR_JWT_SECRET                 # Base64-encoded secret key (min 256 bits for HS256)
+                                          # Generate with: openssl rand -base64 32
+
+stripe:
+  key:
+    secret: YOUR_STRIPE_SECRET_KEY        # sk_test_... from Stripe Dashboard
+    publishable: YOUR_STRIPE_PUBLISHABLE_KEY  # pk_test_... from Stripe Dashboard
+  webhook:
+    secret: YOUR_STRIPE_WEBHOOK_SECRET    # whsec_... from Stripe Webhook settings
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: Covenant Platform
+    description: Secure Escrow Payment API
+    version: 1.0.0

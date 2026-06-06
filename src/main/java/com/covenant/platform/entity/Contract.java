@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.annotation.Version;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.covenant.platform.enums.ContractStatus;
@@ -37,7 +38,11 @@ public class Contract {
     // payment tracking
     private String paymentIntentId; // Stripe PaymentIntent ID for tracking
 
-    // autid timestamps
+    // optimistic locking (prevents concurrent modifications)
+    @Version
+    private Long version;
+
+    // audit timestamps
     @CreatedDate
     private LocalDateTime createdAt;
 
