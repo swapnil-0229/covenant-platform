@@ -1,0 +1,41 @@
+spring:
+  data:
+    mongodb:
+      uri: ${MONGODB_URI}
+      database: covenant
+  mail:
+      host: ${EMAIL_HOST:smtp.gmail.com}
+      port: ${EMAIL_PORT:587}
+      username: ${EMAIL_USERNAME:}
+      password: ${EMAIL_PASSWORD:}
+      properties:
+          mail:
+              smtp:
+                  auth: ${EMAIL_AUTH:true}
+                  starttls:
+                      enable: ${EMAIL_STARTTLS_ENABLE:true}
+
+jwt:
+  secret: ${JWT_SECRET}
+
+stripe:
+    key:
+        secret: ${STRIPE_SECRET_KEY}
+        publishable: ${STRIPE_PUBLISHABLE_KEY}
+    webhook:
+        secret: ${STRIPE_WEBHOOK_SECRET:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: Covenant Platform
+    description: Secure Escrow Payment API
+    version: 1.0.0

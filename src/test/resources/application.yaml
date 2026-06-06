@@ -1,0 +1,41 @@
+spring:
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017
+      database: covenant_test
+  mail:
+      host: localhost
+      port: 1025
+      username: test
+      password: test
+      properties:
+          mail:
+              smtp:
+                  auth: false
+                  starttls:
+                      enable: false
+
+jwt:
+  secret: aVeryLongAndSecureSecretKeyForTestingPurposesOnlyWhichNeedsToBeAtLeast32Bytes
+
+stripe:
+    key:
+        secret: sk_test_mock
+        publishable: pk_test_mock
+    webhook:
+        secret: whsec_mock
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: Covenant Platform
+    description: Secure Escrow Payment API
+    version: 1.0.0
