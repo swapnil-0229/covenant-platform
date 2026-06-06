@@ -16,7 +16,7 @@ RUN mvn clean package -DskipTests
 # ============================================
 # Stage 2: Create the runtime image
 # ============================================
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:21-jre
 
 WORKDIR /app
 
