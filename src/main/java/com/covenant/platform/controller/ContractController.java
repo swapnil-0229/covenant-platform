@@ -7,7 +7,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.covenant.platform.dto.request.AcceptContractRequest;
 import com.covenant.platform.dto.request.CreateContractRequest;
 import com.covenant.platform.dto.request.RaiseDisputeRequest;
 import com.covenant.platform.dto.request.ShipContractRequest;
@@ -22,13 +21,11 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 
-
-
 @RestController
 @RequestMapping("/api/contracts")
 @RequiredArgsConstructor
 public class ContractController {
-    
+
     private final ContractService contractService;
 
     @PostMapping
@@ -42,7 +39,7 @@ public class ContractController {
     }
 
     @PostMapping("/{id}/accept")
-    public ResponseEntity<ContractResponse> acceptContract(@PathVariable String id, @RequestBody AcceptContractRequest request) {
+    public ResponseEntity<ContractResponse> acceptContract(@PathVariable String id) {
         return new ResponseEntity<>(contractService.acceptContract(id), HttpStatus.OK);
     }
 
@@ -75,14 +72,14 @@ public class ContractController {
 
     @PostMapping("/{id}/dispute")
     public ResponseEntity<ContractResponse> raiseDispute(
-            @PathVariable String id, 
+            @PathVariable String id,
             @Valid @RequestBody RaiseDisputeRequest request) {
         return new ResponseEntity<>(contractService.raiseDispute(id, request), HttpStatus.OK);
     }
 
     @PostMapping("/{id}/resolve")
     public ResponseEntity<ContractResponse> resolveDispute(
-            @PathVariable String id, 
+            @PathVariable String id,
             @RequestParam boolean refundBuyer) {
         return new ResponseEntity<>(contractService.resolveDispute(id, refundBuyer), HttpStatus.OK);
     }
