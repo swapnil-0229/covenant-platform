@@ -10,6 +10,7 @@ import com.covenant.platform.enums.ContractStatus;
 
 @Repository
 public interface ContractRepository extends MongoRepository<Contract, String>{
-    List<Contract> findBySellerId(Long sellerId);
+    List<Contract> findBySellerId(String sellerId);
+    List<Contract> findBySellerIdOrBuyerId(String sellerId, String buyerId);
     List<Contract> findByStatusAndDeliveryDateBefore(ContractStatus status, LocalDateTime cutoffDate);
 }

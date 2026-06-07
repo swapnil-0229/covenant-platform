@@ -19,4 +19,7 @@ public class CreateContractRequest {
 
     @Min(value = 1, message = "Amount must be greater than 0")
     private Double amount;
+
+    @jakarta.validation.constraints.Email(message = "Please provide a valid email address")
+    private String buyerEmail;
 }

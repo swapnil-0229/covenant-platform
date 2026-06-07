@@ -10,6 +10,7 @@ public class RegisterRequest {
     private String name;
 
     @NotBlank(message = "Email is required")
+    @jakarta.validation.constraints.Email(message = "Please provide a valid email address")
     private String email;
 
     @NotBlank(message = "Password is required")

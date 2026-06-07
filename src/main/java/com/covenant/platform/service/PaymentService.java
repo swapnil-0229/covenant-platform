@@ -8,6 +8,8 @@ import com.stripe.exception.StripeException;
 import com.stripe.model.PaymentIntent;
 import com.stripe.net.RequestOptions;
 import com.stripe.param.PaymentIntentCreateParams;
+import com.stripe.model.checkout.Session;
+import com.stripe.param.checkout.SessionCreateParams;
 
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +29,43 @@ public class PaymentService {
     public String createPaymentIntent(Double amount) throws StripeException {
         PaymentIntent intent = createPaymentIntentInternal(amount, null, null);
         return intent.getClientSecret();
+    }
+
+    public Session createCheckoutSession(Double amount, String contractId, String buyerId, String title) throws StripeException {
+        long amountInPaise = (long) (amount * 100);
+
+        SessionCreateParams params = SessionCreateParams.builder()
+                .setMode(SessionCreateParams.Mode.PAYMENT)
+                .setSuccessUrl("https://platform.onrender.com/swagger-ui/index.html")
+                .setCancelUrl("https://platform.onrender.com/swagger-ui/index.html")
+                .addLineItem(
+                        SessionCreateParams.LineItem.builder()
+                                .setQuantity(1L)
+                                .setPriceData(
+                                        SessionCreateParams.LineItem.PriceData.builder()
+                                                .setCurrency("inr")
+                                                .setUnitAmount(amountInPaise)
+                                                .setProductData(
+                                                        SessionCreateParams.LineItem.PriceData.ProductData.builder()
+                                                                .setName(title != null ? title : "Contract Payment")
+                                                                .build())
+                                                .build())
+                                .build())
+                .setPaymentIntentData(
+                        SessionCreateParams.PaymentIntentData.builder()
+                                .putMetadata("contractId", contractId)
+                                .build())
+                .build();
+
+        if (contractId != null && buyerId != null) {
+            String idempotencyKey = "checkout-" + contractId + "-" + buyerId;
+            RequestOptions options = RequestOptions.builder()
+                    .setIdempotencyKey(idempotencyKey)
+                    .build();
+            return Session.create(params, options);
+        }
+
+        return Session.create(params);
     }
 
     public PaymentIntent createPaymentIntentInternal(Double amount, String contractId, String buyerId) throws StripeException {

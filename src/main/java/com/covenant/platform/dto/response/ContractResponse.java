@@ -2,6 +2,7 @@ package com.covenant.platform.dto.response;
 
 import java.time.LocalDateTime;
 
+import com.covenant.platform.entity.TrackingDetails;
 import com.covenant.platform.enums.ContractStatus;
 import com.fasterxml.jackson.annotation.JsonFormat;
 
@@ -22,11 +23,7 @@ public class ContractResponse {
     private String description;
     private Double amount;
     private ContractStatus status;
-    private String trackingId;
-    private String logisticsProvider;
-
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
-    private LocalDateTime deliveryDate;
+    private TrackingDetails trackingDetails;
 
     private String paymentIntentId;
 

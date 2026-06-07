@@ -1,6 +1,8 @@
 package com.covenant.platform.service;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -93,14 +95,19 @@ public class ContractService {
                 .description(contract.getDescription())
                 .amount(contract.getAmount())
                 .status(contract.getStatus())
-                .trackingId(contract.getTrackingId())
-                .logisticsProvider(contract.getLogisticsProvider())
-                .deliveryDate(contract.getDeliveryDate())
+                .status(contract.getStatus())
+                .trackingDetails(contract.getTrackingDetails())
                 .paymentIntentId(contract.getPaymentIntentId())
                 .createdAt(contract.getCreatedAt())
                 .updatedAt(contract.getUpdatedAt())
                 .version(contract.getVersion())
                 .build();
+    }
+
+    public List<ContractResponse> getUserContracts() {
+        User currentUser = getCurrentUser();
+        List<Contract> contracts = contractRepository.findBySellerIdOrBuyerId(currentUser.getId(), currentUser.getId());
+        return contracts.stream().map(this::toResponse).collect(Collectors.toList());
     }
 
     @Transactional
@@ -118,6 +125,21 @@ public class ContractService {
 
         Contract saved = contractRepository.save(contract);
         log.info("Contract created: {} by seller: {}", saved.getId(), seller.getEmail());
+
+        if (request.getBuyerEmail() != null && !request.getBuyerEmail().isEmpty()) {
+            String acceptUrl = "https://platform.onrender.com/swagger-ui/index.html";
+            String subject = "Contract Proposed: " + saved.getTitle();
+            String body = "A contract has been proposed to you by " + seller.getEmail() + ".\n\n" +
+                    "Title: " + saved.getTitle() + "\n" +
+                    "Description: " + saved.getDescription() + "\n" +
+                    "Amount: ₹" + saved.getAmount() + "\n\n" +
+                    "Please review and accept the contract here: " + acceptUrl;
+            emailService.sendEmail(request.getBuyerEmail(), subject, body);
+        }
+
+        emailService.sendEmail(seller.getEmail(), "Contract Created: " + saved.getTitle(), 
+            "Your contract has been successfully created. Waiting for buyer to accept.");
+
         return toResponse(saved);
     }
 
@@ -156,24 +178,29 @@ public class ContractService {
         }
 
         try {
-            // Create Payment Intent with contract metadata and idempotency key
-            com.stripe.model.PaymentIntent paymentIntent = paymentService.createPaymentIntentInternal(
-                contract.getAmount(), contractId, buyer.getId());
+            // Create Stripe Checkout Session
+            com.stripe.model.checkout.Session session = paymentService.createCheckoutSession(
+                contract.getAmount(), contractId, buyer.getId(), contract.getTitle());
 
-            // Set buyer and payment details
             contract.setBuyerId(buyer.getId());
             contract.setStatus(ContractStatus.PAYMENT_PENDING);
-            contract.setPaymentIntentId(paymentIntent.getId());
+            // We don't have the paymentIntentId yet, store the session ID if needed, 
+            // but the webhook will work via contractId metadata.
             Contract savedContract = contractRepository.save(contract);
 
             // Notify seller
-            String subject = "Contract Accepted: " + contract.getTitle();
-            String body = "Good news! A buyer has accepted your contract. Payment is pending. " +
-                         "Payment Intent ID: " + paymentIntent.getId() + 
-                         ". Payment will be automatically confirmed via webhook when completed.";
-            emailService.sendEmail(getUserEmail(contract.getSellerId()), subject, body);
+            String sellerSubject = "Contract Accepted: " + contract.getTitle();
+            String sellerBody = "Good news! A buyer has accepted your contract. Payment is pending via Stripe. " +
+                         "Payment will be automatically confirmed via webhook when completed.";
+            emailService.sendEmail(getUserEmail(contract.getSellerId()), sellerSubject, sellerBody);
 
-            log.info("Contract {} accepted by buyer: {}", contractId, buyer.getEmail());
+            // Notify buyer with Checkout URL
+            String buyerSubject = "Contract Accepted - Payment Required";
+            String buyerBody = "You have accepted the contract: " + contract.getTitle() + ".\n\n" +
+                         "Please complete your payment using this secure link: " + session.getUrl();
+            emailService.sendEmail(buyer.getEmail(), buyerSubject, buyerBody);
+
+            log.info("Contract {} accepted by buyer: {}. Checkout URL sent.", contractId, buyer.getEmail());
             return toResponse(savedContract);
 
         } catch (StripeException e) {
@@ -245,8 +272,11 @@ public class ContractService {
             throw new IllegalStateException("Cannot ship. Contract status must be LOCKED. Current Status: " + contract.getStatus());
         }
 
-        contract.setTrackingId(request.getTrackingId());
-        contract.setLogisticsProvider(request.getLogisticsProvider());
+        com.covenant.platform.entity.TrackingDetails tracking = com.covenant.platform.entity.TrackingDetails.builder()
+                .trackingId(request.getTrackingId())
+                .logisticsProvider(request.getLogisticsProvider())
+                .build();
+        contract.setTrackingDetails(tracking);
         contract.setStatus(ContractStatus.SHIPPED);
 
         String subject = "Item Shipped: " + contract.getTitle();
@@ -270,7 +300,9 @@ public class ContractService {
         }
 
         contract.setStatus(ContractStatus.DELIVERED);
-        contract.setDeliveryDate(LocalDateTime.now());
+        if (contract.getTrackingDetails() != null) {
+            contract.getTrackingDetails().setDeliveryDate(LocalDateTime.now());
+        }
 
         String subject = "Item Delivered: " + contract.getTitle();
         String body = "The courier has marked your item as delivered. Please inspect it within 14 days.";

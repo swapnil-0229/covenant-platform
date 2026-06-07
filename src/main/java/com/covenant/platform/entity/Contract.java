@@ -31,9 +31,7 @@ public class Contract {
     private ContractStatus status;
 
     // logistics
-    private String trackingId;
-    private String logisticsProvider; 
-    private LocalDateTime deliveryDate;
+    private TrackingDetails trackingDetails;
 
     // payment tracking
     private String paymentIntentId; // Stripe PaymentIntent ID for tracking
