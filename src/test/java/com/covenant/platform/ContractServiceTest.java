@@ -142,10 +142,10 @@ class ContractServiceTest {
         Contract contract = createDraftContract();
         when(contractRepository.findById("contract-1")).thenReturn(Optional.of(contract));
 
-        PaymentIntent mockPaymentIntent = mock(PaymentIntent.class);
-        when(mockPaymentIntent.getId()).thenReturn("pi_test_123");
-        when(paymentService.createPaymentIntentInternal(eq(5000.0), eq("contract-1"), eq("buyer-1")))
-                .thenReturn(mockPaymentIntent);
+        com.stripe.model.checkout.Session mockSession = mock(com.stripe.model.checkout.Session.class);
+        when(mockSession.getUrl()).thenReturn("http://checkout.url");
+        when(paymentService.createCheckoutSession(eq(5000.0), eq("contract-1"), eq("buyer-1"), eq("Test Item")))
+                .thenReturn(mockSession);
 
         when(contractRepository.save(any(Contract.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -153,7 +153,6 @@ class ContractServiceTest {
 
         assertEquals(ContractStatus.PAYMENT_PENDING, response.getStatus());
         assertEquals(buyer.getId(), response.getBuyerId());
-        assertEquals("pi_test_123", response.getPaymentIntentId());
     }
 
     // --- Test 4: Confirming payment moves status to LOCKED ---
@@ -214,7 +213,8 @@ class ContractServiceTest {
         ContractResponse response = contractService.shipContract("contract-1", request);
 
         assertEquals(ContractStatus.SHIPPED, response.getStatus());
-        assertEquals("FX-123", response.getTrackingId());
+        assertNotNull(response.getTrackingDetails());
+        assertEquals("FX-123", response.getTrackingDetails().getTrackingId());
     }
 
     // --- Test 7: Satisfying a contract moves to SATISFIED ---
