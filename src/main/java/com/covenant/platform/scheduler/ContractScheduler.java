@@ -28,7 +28,7 @@ public class ContractScheduler {
 
         LocalDateTime cutoffDate = LocalDateTime.now().minusDays(14);
 
-        List<Contract> expiredContracts = contractRepository.findByStatusAndDeliveryDateBefore(
+        List<Contract> expiredContracts = contractRepository.findByStatusAndTrackingDetailsDeliveryDateBefore(
             ContractStatus.DELIVERED, 
             cutoffDate
         );
