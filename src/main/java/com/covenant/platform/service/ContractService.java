@@ -31,14 +31,15 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @Slf4j
 public class ContractService {
-    
+
     private final UserRepository userRepository;
     private final ContractRepository contractRepository;
     private final EmailService emailService;
     private final PaymentService paymentService;
 
     private String getUserEmail(String userId) {
-        if (userId == null) return "unknown@covenant.com";
+        if (userId == null)
+            return "unknown@covenant.com";
         return userRepository.findById(userId)
                 .map(User::getEmail)
                 .orElse("unknown@covenant.com");
@@ -49,7 +50,9 @@ public class ContractService {
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
     }
 
-    /** Resolves the currently authenticated user from SecurityContext (e.g. JWT). */
+    /**
+     * Resolves the currently authenticated user from SecurityContext (e.g. JWT).
+     */
     private User getCurrentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || auth.getName() == null || "anonymousUser".equals(auth.getName())) {
@@ -127,7 +130,7 @@ public class ContractService {
         log.info("Contract created: {} by seller: {}", saved.getId(), seller.getEmail());
 
         if (request.getBuyerEmail() != null && !request.getBuyerEmail().isEmpty()) {
-            String acceptUrl = "https://platform.onrender.com/swagger-ui/index.html";
+            String acceptUrl = "https://covenant-api-mo93.onrender.com/swagger-ui/index.html";
             String subject = "Contract Proposed: " + saved.getTitle();
             String body = "A contract has been proposed to you by " + seller.getEmail() + ".\n\n" +
                     "Title: " + saved.getTitle() + "\n" +
@@ -137,8 +140,8 @@ public class ContractService {
             emailService.sendEmail(request.getBuyerEmail(), subject, body);
         }
 
-        emailService.sendEmail(seller.getEmail(), "Contract Created: " + saved.getTitle(), 
-            "Your contract has been successfully created. Waiting for buyer to accept.");
+        emailService.sendEmail(seller.getEmail(), "Contract Created: " + saved.getTitle(),
+                "Your contract has been successfully created. Waiting for buyer to accept.");
 
         return toResponse(saved);
     }
@@ -157,7 +160,10 @@ public class ContractService {
         return toResponse(contract);
     }
 
-    /** Internal method to get contract without auth checks (for webhooks/system use). */
+    /**
+     * Internal method to get contract without auth checks (for webhooks/system
+     * use).
+     */
     public Contract getContractByIdInternal(@NonNull String id) {
         return contractRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Contract", "id", id));
@@ -173,31 +179,31 @@ public class ContractService {
             throw new IllegalStateException("You cannot accept your own contract.");
         }
 
-        if(contract.getStatus() != ContractStatus.DRAFT) {
+        if (contract.getStatus() != ContractStatus.DRAFT) {
             throw new IllegalStateException("This contract is not available. current status: " + contract.getStatus());
         }
 
         try {
             // Create Stripe Checkout Session
             com.stripe.model.checkout.Session session = paymentService.createCheckoutSession(
-                contract.getAmount(), contractId, buyer.getId(), contract.getTitle());
+                    contract.getAmount(), contractId, buyer.getId(), contract.getTitle());
 
             contract.setBuyerId(buyer.getId());
             contract.setStatus(ContractStatus.PAYMENT_PENDING);
-            // We don't have the paymentIntentId yet, store the session ID if needed, 
+            // We don't have the paymentIntentId yet, store the session ID if needed,
             // but the webhook will work via contractId metadata.
             Contract savedContract = contractRepository.save(contract);
 
             // Notify seller
             String sellerSubject = "Contract Accepted: " + contract.getTitle();
             String sellerBody = "Good news! A buyer has accepted your contract. Payment is pending via Stripe. " +
-                         "Payment will be automatically confirmed via webhook when completed.";
+                    "Payment will be automatically confirmed via webhook when completed.";
             emailService.sendEmail(getUserEmail(contract.getSellerId()), sellerSubject, sellerBody);
 
             // Notify buyer with Checkout URL
             String buyerSubject = "Contract Accepted - Payment Required";
             String buyerBody = "You have accepted the contract: " + contract.getTitle() + ".\n\n" +
-                         "Please complete your payment using this secure link: " + session.getUrl();
+                    "Please complete your payment using this secure link: " + session.getUrl();
             emailService.sendEmail(buyer.getEmail(), buyerSubject, buyerBody);
 
             log.info("Contract {} accepted by buyer: {}. Checkout URL sent.", contractId, buyer.getEmail());
@@ -222,15 +228,18 @@ public class ContractService {
         requireBuyer(contract, currentUser);
 
         if (contract.getStatus() != ContractStatus.PAYMENT_PENDING) {
-            throw new IllegalStateException("Cannot confirm payment. Contract is not pending. Status: " + contract.getStatus());
+            throw new IllegalStateException(
+                    "Cannot confirm payment. Contract is not pending. Status: " + contract.getStatus());
         }
 
         // Verify payment with Stripe if PaymentIntent ID exists
         if (contract.getPaymentIntentId() != null) {
             try {
-                com.stripe.model.PaymentIntent paymentIntent = paymentService.getPaymentIntent(contract.getPaymentIntentId());
+                com.stripe.model.PaymentIntent paymentIntent = paymentService
+                        .getPaymentIntent(contract.getPaymentIntentId());
                 if (!"succeeded".equals(paymentIntent.getStatus())) {
-                    throw new IllegalStateException("Payment not completed. Stripe status: " + paymentIntent.getStatus());
+                    throw new IllegalStateException(
+                            "Payment not completed. Stripe status: " + paymentIntent.getStatus());
                 }
             } catch (com.stripe.exception.StripeException e) {
                 log.warn("Could not verify payment with Stripe for contract {}: {}", contractId, e.getMessage());
@@ -242,12 +251,14 @@ public class ContractService {
     }
 
     /**
-     * Internal method to confirm payment (used by webhook handler and manual confirmation).
+     * Internal method to confirm payment (used by webhook handler and manual
+     * confirmation).
      */
     @Transactional
     public Contract confirmPaymentInternal(Contract contract) {
         if (contract.getStatus() != ContractStatus.PAYMENT_PENDING) {
-            throw new IllegalStateException("Cannot confirm payment. Contract is not pending. Status: " + contract.getStatus());
+            throw new IllegalStateException(
+                    "Cannot confirm payment. Contract is not pending. Status: " + contract.getStatus());
         }
 
         contract.setStatus(ContractStatus.LOCKED);
@@ -257,7 +268,7 @@ public class ContractService {
         String subject = "Payment Received: " + contract.getTitle();
         String body = "Payment confirmed! Funds are locked. Please ship the item.";
         emailService.sendEmail(getUserEmail(contract.getSellerId()), subject, body);
-        
+
         log.info("Payment confirmed for contract: {}", contract.getId());
         return savedContract;
     }
@@ -269,7 +280,8 @@ public class ContractService {
         requireSeller(contract, getCurrentUser());
 
         if (contract.getStatus() != ContractStatus.LOCKED) {
-            throw new IllegalStateException("Cannot ship. Contract status must be LOCKED. Current Status: " + contract.getStatus());
+            throw new IllegalStateException(
+                    "Cannot ship. Contract status must be LOCKED. Current Status: " + contract.getStatus());
         }
 
         com.covenant.platform.entity.TrackingDetails tracking = com.covenant.platform.entity.TrackingDetails.builder()
@@ -280,13 +292,13 @@ public class ContractService {
         contract.setStatus(ContractStatus.SHIPPED);
 
         String subject = "Item Shipped: " + contract.getTitle();
-        String body = "The seller has shipped your item via " + request.getLogisticsProvider() + 
-                      ". Tracking ID: " + request.getTrackingId();
+        String body = "The seller has shipped your item via " + request.getLogisticsProvider() +
+                ". Tracking ID: " + request.getTrackingId();
         emailService.sendEmail(getUserEmail(contract.getBuyerId()), subject, body);
 
         Contract saved = contractRepository.save(contract);
         log.info("Contract {} shipped with tracking: {}", contractId, request.getTrackingId());
-        return toResponse(saved); 
+        return toResponse(saved);
     }
 
     @Transactional
@@ -296,7 +308,8 @@ public class ContractService {
         requireSeller(contract, getCurrentUser());
 
         if (contract.getStatus() != ContractStatus.SHIPPED) {
-            throw new IllegalStateException("Cannot mark delivered to a contract not shipped. Current Status: " + contract.getStatus());
+            throw new IllegalStateException(
+                    "Cannot mark delivered to a contract not shipped. Current Status: " + contract.getStatus());
         }
 
         contract.setStatus(ContractStatus.DELIVERED);
@@ -322,18 +335,23 @@ public class ContractService {
         return toResponse(saved);
     }
 
-    /** Internal method for scheduler - bypasses auth checks and uses AUTO_RELEASED status. */
+    /**
+     * Internal method for scheduler - bypasses auth checks and uses AUTO_RELEASED
+     * status.
+     */
     @Transactional
     public Contract markAsSatisfiedInternal(Contract contract, ContractStatus status) {
         if (contract.getStatus() != ContractStatus.DELIVERED && contract.getStatus() != ContractStatus.SHIPPED) {
-            throw new IllegalStateException("Cannot mark satisfied as item not shipped/delivered. Current Status: " + contract.getStatus());
+            throw new IllegalStateException(
+                    "Cannot mark satisfied as item not shipped/delivered. Current Status: " + contract.getStatus());
         }
 
         contract.setStatus(status);
 
         String subject = "Payment Released: " + contract.getTitle();
         String body = status == ContractStatus.AUTO_RELEASED
-                ? "14 days have passed since delivery with no dispute. Funds of ₹" + contract.getAmount() + " have been automatically released to your account."
+                ? "14 days have passed since delivery with no dispute. Funds of ₹" + contract.getAmount()
+                        + " have been automatically released to your account."
                 : "The buyer is satisfied! Funds of ₹" + contract.getAmount() + " have been released to your account.";
         emailService.sendEmail(getUserEmail(contract.getSellerId()), subject, body);
 
@@ -349,7 +367,9 @@ public class ContractService {
         requireSeller(contract, getCurrentUser());
 
         if (contract.getStatus() != ContractStatus.DRAFT) {
-            throw new IllegalStateException("Cannot cancel. Contract can only be cancelled in DRAFT status. Current Status: " + contract.getStatus());
+            throw new IllegalStateException(
+                    "Cannot cancel. Contract can only be cancelled in DRAFT status. Current Status: "
+                            + contract.getStatus());
         }
 
         contract.setStatus(ContractStatus.CANCELLED);

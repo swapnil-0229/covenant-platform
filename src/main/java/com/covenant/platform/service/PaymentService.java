@@ -29,8 +29,8 @@ public class PaymentService {
 
         SessionCreateParams params = SessionCreateParams.builder()
                 .setMode(SessionCreateParams.Mode.PAYMENT)
-                .setSuccessUrl("https://platform.onrender.com/swagger-ui/index.html")
-                .setCancelUrl("https://platform.onrender.com/swagger-ui/index.html")
+                .setSuccessUrl("https://covenant-api-mo93.onrender.com/swagger-ui/index.html")
+                .setCancelUrl("https://covenant-api-mo93.onrender.com/swagger-ui/index.html")
                 .addLineItem(
                         SessionCreateParams.LineItem.builder()
                                 .setQuantity(1L)
