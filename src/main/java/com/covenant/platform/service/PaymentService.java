@@ -19,6 +19,9 @@ public class PaymentService {
     @Value("${stripe.key.secret}")
     private String secretKey;
 
+    @Value("${app.base-url:http://localhost:8080}")
+    private String appBaseUrl;
+
     @PostConstruct
     public void init() {
         Stripe.apiKey = secretKey; // Initialize Stripe with your Secret Key
@@ -29,8 +32,8 @@ public class PaymentService {
 
         SessionCreateParams params = SessionCreateParams.builder()
                 .setMode(SessionCreateParams.Mode.PAYMENT)
-                .setSuccessUrl("https://covenant-api-mo93.onrender.com/swagger-ui/index.html")
-                .setCancelUrl("https://covenant-api-mo93.onrender.com/swagger-ui/index.html")
+                .setSuccessUrl(appBaseUrl + "/swagger-ui/index.html")
+                .setCancelUrl(appBaseUrl + "/swagger-ui/index.html")
                 .addLineItem(
                         SessionCreateParams.LineItem.builder()
                                 .setQuantity(1L)

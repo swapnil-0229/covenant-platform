@@ -3,7 +3,7 @@
 > **A production-grade backend for secure peer-to-peer transactions.**
 > *Built with Spring Boot 3, Stripe, and JWT Security.*
 
-🔗 **Live API (Swagger UI):** [click here to check out deployed project (may be down for some time if not used frequently and may take some time to wake up, this is due to free hosting feature)](https://covenant-api-mo93.onrender.com/swagger-ui/index.html)
+🔗 **Live API (Swagger UI):** [Click here to check out the deployed project](http://129.154.235.8:8080/swagger-ui/index.html)
 
 ---
 

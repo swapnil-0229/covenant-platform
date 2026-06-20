@@ -37,6 +37,9 @@ public class ContractService {
     private final EmailService emailService;
     private final PaymentService paymentService;
 
+    @org.springframework.beans.factory.annotation.Value("${app.base-url:http://localhost:8080}")
+    private String appBaseUrl;
+
     private String getUserEmail(String userId) {
         if (userId == null)
             return "unknown@covenant.com";
@@ -98,7 +101,6 @@ public class ContractService {
                 .description(contract.getDescription())
                 .amount(contract.getAmount())
                 .status(contract.getStatus())
-                .status(contract.getStatus())
                 .trackingDetails(contract.getTrackingDetails())
                 .paymentIntentId(contract.getPaymentIntentId())
                 .createdAt(contract.getCreatedAt())
@@ -130,7 +132,7 @@ public class ContractService {
         log.info("Contract created: {} by seller: {}", saved.getId(), seller.getEmail());
 
         if (request.getBuyerEmail() != null && !request.getBuyerEmail().isEmpty()) {
-            String acceptUrl = "https://covenant-api-mo93.onrender.com/swagger-ui/index.html";
+            String acceptUrl = appBaseUrl + "/swagger-ui/index.html";
             String subject = "Contract Proposed: " + saved.getTitle();
             String body = "A contract has been proposed to you by " + seller.getEmail() + ".\n\n" +
                     "Title: " + saved.getTitle() + "\n" +

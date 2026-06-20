@@ -17,6 +17,9 @@ spring:
                   ssl:
                       enable: ${EMAIL_SSL_ENABLE:false}
 
+app:
+  base-url: ${APP_BASE_URL:http://localhost:8080}
+
 jwt:
   secret: ${JWT_SECRET}
 
