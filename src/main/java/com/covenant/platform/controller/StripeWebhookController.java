@@ -23,9 +23,9 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @Slf4j
 public class StripeWebhookController {
-    
+
     private final ContractService contractService;
-    
+
     @Value("${stripe.webhook.secret:}")
     private String webhookSecret;
 
@@ -33,7 +33,7 @@ public class StripeWebhookController {
     public ResponseEntity<String> handleStripeWebhook(
             @RequestBody String payload,
             @RequestHeader(value = "Stripe-Signature", required = false) String sigHeader) {
-        
+
         Event event;
         try {
             // Verify webhook signature (important for security)
@@ -41,7 +41,7 @@ public class StripeWebhookController {
                 event = Webhook.constructEvent(payload, sigHeader, webhookSecret);
             } else {
                 log.warn("Stripe webhook secret not configured or signature missing. " +
-                         "Processing event without verification (NOT RECOMMENDED FOR PRODUCTION).");
+                        "Processing event without verification (NOT RECOMMENDED FOR PRODUCTION).");
                 // For development/testing: parse event without verification
                 // In production, always require webhook secret
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -57,18 +57,26 @@ public class StripeWebhookController {
 
         // Handle the event
         if ("payment_intent.succeeded".equals(event.getType())) {
-            PaymentIntent paymentIntent = (PaymentIntent) event.getDataObjectDeserializer()
-                    .getObject().orElse(null);
-            
-            if (paymentIntent != null) {
+            PaymentIntent paymentIntent = null;
+            try {
+                paymentIntent = (PaymentIntent) event.getDataObjectDeserializer().getObject().orElse(null);
+                if (paymentIntent == null) {
+                    paymentIntent = (PaymentIntent) event.getDataObjectDeserializer().deserializeUnsafe();
+                }
+            } catch (com.stripe.exception.EventDataObjectDeserializationException e) {
+                log.error("Failed to deserialize PaymentIntent from webhook event: {}", event.getId(), e);
+            }
+
+            if (paymentIntent == null) {
+                log.error("PaymentIntent is null for webhook event: {}", event.getId());
+            } else {
                 String contractId = paymentIntent.getMetadata().get("contractId");
-                
+
                 if (contractId != null) {
                     try {
                         log.info("Processing payment confirmation for contract: {}", contractId);
                         contractService.confirmPaymentInternal(
-                            contractService.getContractByIdInternal(contractId)
-                        );
+                                contractService.getContractByIdInternal(contractId));
                         log.info("Payment confirmed successfully for contract: {}", contractId);
                     } catch (Exception e) {
                         log.error("Error confirming payment for contract {}: {}", contractId, e.getMessage(), e);
