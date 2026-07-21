@@ -41,4 +41,4 @@ jobs:
         key: ${{ secrets.OCI_SSH_KEY }}
         script: |
           mv /home/ubuntu/platform/*.jar /home/ubuntu/platform/covenant-api.jar
-          sudo systemctl restart covenant-app.service
+          sudo systemctl restart covenant.service
