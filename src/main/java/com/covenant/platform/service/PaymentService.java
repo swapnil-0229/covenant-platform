@@ -67,4 +67,8 @@ public class PaymentService {
     public PaymentIntent getPaymentIntent(String paymentIntentId) throws StripeException {
         return PaymentIntent.retrieve(paymentIntentId);
     }
+
+    public Session getCheckoutSession(String sessionId) throws StripeException {
+        return Session.retrieve(sessionId);
+    }
 }

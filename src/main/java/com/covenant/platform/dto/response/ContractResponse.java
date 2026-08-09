@@ -25,7 +25,7 @@ public class ContractResponse {
     private ContractStatus status;
     private TrackingDetails trackingDetails;
 
-    private String paymentIntentId;
+    private String stripeSessionId;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime createdAt;

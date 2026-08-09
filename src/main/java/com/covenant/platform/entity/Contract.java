@@ -34,7 +34,7 @@ public class Contract {
     private TrackingDetails trackingDetails;
 
     // payment tracking
-    private String paymentIntentId; // Stripe PaymentIntent ID for tracking
+    private String stripeSessionId; // Stripe Checkout Session ID for tracking
 
     // optimistic locking (prevents concurrent modifications)
     @Version

@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -15,6 +16,7 @@ import com.covenant.platform.dto.request.RaiseDisputeRequest;
 import com.covenant.platform.dto.request.ShipContractRequest;
 import com.covenant.platform.dto.response.ContractResponse;
 import com.covenant.platform.entity.Contract;
+import com.covenant.platform.entity.TrackingDetails;
 import com.covenant.platform.entity.User;
 import com.covenant.platform.enums.ContractStatus;
 import com.covenant.platform.enums.Role;
@@ -22,6 +24,7 @@ import com.covenant.platform.exception.ResourceNotFoundException;
 import com.covenant.platform.repository.ContractRepository;
 import com.covenant.platform.repository.UserRepository;
 import com.stripe.exception.StripeException;
+import com.stripe.model.checkout.Session;
 
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -37,7 +40,7 @@ public class ContractService {
     private final EmailService emailService;
     private final PaymentService paymentService;
 
-    @org.springframework.beans.factory.annotation.Value("${app.base-url:http://localhost:8080}")
+    @Value("${app.base-url:http://localhost:8080}")
     private String appBaseUrl;
 
     private String getUserEmail(String userId) {
@@ -77,11 +80,12 @@ public class ContractService {
     }
 
     /** Requires current user to be either seller or buyer of the contract. */
-    private void requireParty(Contract contract, User user) {
+    private void requirePartyOrAdmin(Contract contract, User user) {
         boolean isSeller = user.getId().equals(contract.getSellerId());
         boolean isBuyer = contract.getBuyerId() != null && contract.getBuyerId().equals(user.getId());
-        if (!isSeller && !isBuyer) {
-            throw new IllegalStateException("You are not the seller or buyer of this contract.");
+        boolean isAdmin = user.getRole() == Role.ADMIN;
+        if (!isSeller && !isBuyer && !isAdmin) {
+            throw new IllegalStateException("You are not authorized to view this contract.");
         }
     }
 
@@ -102,7 +106,7 @@ public class ContractService {
                 .amount(contract.getAmount())
                 .status(contract.getStatus())
                 .trackingDetails(contract.getTrackingDetails())
-                .paymentIntentId(contract.getPaymentIntentId())
+                .stripeSessionId(contract.getStripeSessionId())
                 .createdAt(contract.getCreatedAt())
                 .updatedAt(contract.getUpdatedAt())
                 .version(contract.getVersion())
@@ -124,7 +128,6 @@ public class ContractService {
         contract.setDescription(request.getDescription());
         contract.setTitle(request.getTitle());
         contract.setAmount(request.getAmount());
-
         contract.setStatus(ContractStatus.DRAFT);
         contract.setCreatedAt(LocalDateTime.now());
 
@@ -152,13 +155,8 @@ public class ContractService {
         Contract contract = contractRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Contract", "id", id));
         User currentUser = getCurrentUser();
-        // Allow seller, buyer, or admin to view the contract
-        boolean isSeller = currentUser.getId().equals(contract.getSellerId());
-        boolean isBuyer = contract.getBuyerId() != null && contract.getBuyerId().equals(currentUser.getId());
-        boolean isAdmin = currentUser.getRole() == Role.ADMIN;
-        if (!isSeller && !isBuyer && !isAdmin) {
-            throw new IllegalStateException("You are not authorized to view this contract.");
-        }
+        // Allow only seller, buyer, or admin to view the contract
+        requirePartyOrAdmin(contract, currentUser);
         return toResponse(contract);
     }
 
@@ -172,7 +170,7 @@ public class ContractService {
     }
 
     @Transactional
-    public ContractResponse acceptContract(String contractId) {
+    public ContractResponse acceptContract(@NonNull String contractId) {
         User buyer = getCurrentUser();
         Contract contract = contractRepository.findById(contractId)
                 .orElseThrow(() -> new ResourceNotFoundException("Contract", "id", contractId));
@@ -187,13 +185,12 @@ public class ContractService {
 
         try {
             // Create Stripe Checkout Session
-            com.stripe.model.checkout.Session session = paymentService.createCheckoutSession(
+            Session session = paymentService.createCheckoutSession(
                     contract.getAmount(), contractId, buyer.getId(), contract.getTitle());
 
             contract.setBuyerId(buyer.getId());
             contract.setStatus(ContractStatus.PAYMENT_PENDING);
-            // We don't have the paymentIntentId yet, store the session ID if needed,
-            // but the webhook will work via contractId metadata.
+            contract.setStripeSessionId(session.getId());
             Contract savedContract = contractRepository.save(contract);
 
             // Notify seller
@@ -223,7 +220,7 @@ public class ContractService {
      * This method verifies payment status with Stripe before confirming.
      */
     @Transactional
-    public ContractResponse confirmPayment(String contractId) {
+    public ContractResponse confirmPayment(@NonNull String contractId) {
         Contract contract = contractRepository.findById(contractId)
                 .orElseThrow(() -> new ResourceNotFoundException("Contract", "id", contractId));
         User currentUser = getCurrentUser();
@@ -234,21 +231,20 @@ public class ContractService {
                     "Cannot confirm payment. Contract is not pending. Status: " + contract.getStatus());
         }
 
-        // Verify payment with Stripe if PaymentIntent ID exists
-        if (contract.getPaymentIntentId() != null) {
+        // Verify payment with Stripe if Session ID exists
+        if (contract.getStripeSessionId() != null) {
             try {
-                com.stripe.model.PaymentIntent paymentIntent = paymentService
-                        .getPaymentIntent(contract.getPaymentIntentId());
-                if (!"succeeded".equals(paymentIntent.getStatus())) {
+                Session session = paymentService.getCheckoutSession(contract.getStripeSessionId());
+
+                if (!"paid".equals(session.getPaymentStatus())) {
                     throw new IllegalStateException(
-                            "Payment not completed. Stripe status: " + paymentIntent.getStatus());
+                            "Payment not completed. Stripe status: " + session.getPaymentStatus());
                 }
-            } catch (com.stripe.exception.StripeException e) {
+            } catch (StripeException e) {
                 log.warn("Could not verify payment with Stripe for contract {}: {}", contractId, e.getMessage());
                 // Continue anyway for manual confirmation
             }
         }
-
         return toResponse(confirmPaymentInternal(contract));
     }
 
@@ -257,7 +253,7 @@ public class ContractService {
      * confirmation).
      */
     @Transactional
-    public Contract confirmPaymentInternal(Contract contract) {
+    public Contract confirmPaymentInternal(@NonNull Contract contract) {
         if (contract.getStatus() != ContractStatus.PAYMENT_PENDING) {
             throw new IllegalStateException(
                     "Cannot confirm payment. Contract is not pending. Status: " + contract.getStatus());
@@ -276,7 +272,7 @@ public class ContractService {
     }
 
     @Transactional
-    public ContractResponse shipContract(String contractId, ShipContractRequest request) {
+    public ContractResponse shipContract(@NonNull String contractId, ShipContractRequest request) {
         Contract contract = contractRepository.findById(contractId)
                 .orElseThrow(() -> new ResourceNotFoundException("Contract", "id", contractId));
         requireSeller(contract, getCurrentUser());
@@ -286,11 +282,11 @@ public class ContractService {
                     "Cannot ship. Contract status must be LOCKED. Current Status: " + contract.getStatus());
         }
 
-        com.covenant.platform.entity.TrackingDetails tracking = com.covenant.platform.entity.TrackingDetails.builder()
+        TrackingDetails trackingDetails = TrackingDetails.builder()
                 .trackingId(request.getTrackingId())
                 .logisticsProvider(request.getLogisticsProvider())
                 .build();
-        contract.setTrackingDetails(tracking);
+        contract.setTrackingDetails(trackingDetails);
         contract.setStatus(ContractStatus.SHIPPED);
 
         String subject = "Item Shipped: " + contract.getTitle();
@@ -304,7 +300,7 @@ public class ContractService {
     }
 
     @Transactional
-    public ContractResponse markAsDelivered(String contractId) {
+    public ContractResponse markAsDelivered(@NonNull String contractId) {
         Contract contract = contractRepository.findById(contractId)
                 .orElseThrow(() -> new ResourceNotFoundException("Contract", "id", contractId));
         requireSeller(contract, getCurrentUser());
@@ -329,7 +325,7 @@ public class ContractService {
     }
 
     @Transactional
-    public ContractResponse markAsSatisfied(String contractId) {
+    public ContractResponse markAsSatisfied(@NonNull String contractId) {
         Contract contract = contractRepository.findById(contractId)
                 .orElseThrow(() -> new ResourceNotFoundException("Contract", "id", contractId));
         requireBuyer(contract, getCurrentUser());
@@ -363,7 +359,7 @@ public class ContractService {
     }
 
     @Transactional
-    public ContractResponse cancelContract(String contractId) {
+    public ContractResponse cancelContract(@NonNull String contractId) {
         Contract contract = contractRepository.findById(contractId)
                 .orElseThrow(() -> new ResourceNotFoundException("Contract", "id", contractId));
         requireSeller(contract, getCurrentUser());
@@ -381,7 +377,7 @@ public class ContractService {
     }
 
     @Transactional
-    public ContractResponse raiseDispute(String contractId, RaiseDisputeRequest request) {
+    public ContractResponse raiseDispute(@NonNull String contractId, RaiseDisputeRequest request) {
         Contract contract = contractRepository.findById(contractId)
                 .orElseThrow(() -> new ResourceNotFoundException("Contract", "id", contractId));
         requireBuyer(contract, getCurrentUser());
@@ -401,7 +397,7 @@ public class ContractService {
     }
 
     @Transactional
-    public ContractResponse resolveDispute(String contractId, boolean refundBuyer) {
+    public ContractResponse resolveDispute(@NonNull String contractId, boolean refundBuyer) {
         Contract contract = contractRepository.findById(contractId)
                 .orElseThrow(() -> new ResourceNotFoundException("Contract", "id", contractId));
         requireAdmin(getCurrentUser());
